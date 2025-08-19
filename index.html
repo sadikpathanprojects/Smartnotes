@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Smart Notes — Offline</title>
+<style>
+  :root{
+    --bg:#0f1220; --panel:#171a2b; --muted:#8d93a7; --text:#e7eaf6; --accent:#7c5cff;
+    --ok:#4cc9f0; --good:#80ed99; --warn:#f7b267; --bad:#ef476f; --border:#2a2f4a;
+    --radius:16px; --shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; font-family: Aptos, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Arial, sans-serif;
+    background: radial-gradient(1200px 600px at 10% -10%, #1b1f35, #0f1220);
+    color:var(--text); line-height:1.45;
+  }
+  header{
+    position:sticky; top:0; z-index:10; backdrop-filter: blur(6px);
+    background: linear-gradient(180deg, rgba(15,18,32,.9), rgba(15,18,32,.6));
+    border-bottom:1px solid var(--border);
+  }
+  .wrap{max-width:1100px; margin:0 auto; padding:18px 16px;}
+  .title{display:flex; align-items:center; gap:12px}
+  .logo{
+    width:38px; height:38px; border-radius:12px; background:linear-gradient(135deg,#7c5cff,#4cc9f0);
+    box-shadow: var(--shadow);
+  }
+  h1{font-size:20px; margin:0}
+  .subtitle{font-size:12px; color:var(--muted)}
+  nav{margin-top:12px; display:flex; gap:8px; flex-wrap:wrap}
+  nav button{
+    border:1px solid var(--border); background:var(--panel); color:var(--text);
+    padding:10px 14px; border-radius:999px; cursor:pointer;
+  }
+  nav button.active{border-color:var(--accent); outline:2px solid rgba(124,92,255,.35)}
+  main{padding:18px 16px}
+  .grid{display:grid; gap:14px}
+  @media(min-width:900px){ .grid{grid-template-columns: 1.1fr 1fr} }
+
+  .card{
+    background: linear-gradient(180deg, rgba(23,26,43,.9), rgba(23,26,43,.6));
+    border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow);
+    padding:16px;
+  }
+  .card h2{font-size:16px; margin:0 0 10px}
+  .muted{color:var(--muted); font-size:12px}
+  .row{display:flex; gap:10px; flex-wrap:wrap}
+  input[type="text"], textarea{
+    width:100%; background:#0c0f1d; color:var(--text); border:1px solid var(--border);
+    border-radius:12px; padding:10px 12px;
+  }
+  textarea{min-height:120px; resize:vertical}
+  .btn{
+    border:1px solid var(--border); background:#0c0f1d; color:var(--text);
+    padding:10px 14px; border-radius:12px; cursor:pointer;
+  }
+  .btn.primary{background:linear-gradient(135deg,#7c5cff,#4cc9f0); border:none; color:white}
+  .btn.ghost{background:transparent}
+  .btn.good{background:var(--good); color:#0b1521; border:none}
+  .btn.ok{background:var(--ok); color:#0b1521; border:none}
+  .btn.warn{background:var(--warn); color:#0b1521; border:none}
+  .btn.bad{background:var(--bad); color:white; border:none}
+  .pill{padding:6px 10px; border:1px solid var(--border); border-radius:999px; font-size:12px}
+  .list{display:grid; gap:10px; margin-top:8px}
+  .note{
+    border:1px dashed var(--border); border-radius:12px; padding:12px; background:#0c0f1d;
+  }
+  .note .head{display:flex; align-items:center; justify-content:space-between; gap:8px}
+  .note .title{font-weight:600}
+  .note .tags{display:flex; gap:6px; flex-wrap:wrap}
+  .footer{
+    text-align:center; color:var(--muted); font-size:12px; padding:30px 12px; letter-spacing:.3px;
+  }
+  .footer strong{color:#fff; font-weight:700}
+  .kpi{display:flex; gap:10px; flex-wrap:wrap}
+  .kpi .pill{background:#0c0f1d}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="title">
+      <div class="logo" aria-hidden="true"></div>
+      <div>
+        <h1>Smart Notes — Offline</h1>
+        <div class="subtitle">Capture fast • Remember more • Review smarter (all data stays on this device)</div>
+      </div>
+    </div>
+    <nav>
+      <button class="tab_btn active" data-tab="capture">Quick Capture</button>
+      <button class="tab_btn" data-tab="notes">Notes</button>
+      <button class="tab_btn" data-tab="review">Flashcards</button>
+      <button class="tab_btn" data-tab="backup">Backup & Import</button>
+      <span style="flex:1"></span>
+      <span class="kpi">
+        <span class="pill" id="kpi-notes">0 notes</span>
+        <span class="pill" id="kpi-due">0 due</span>
+        <span class="pill" id="kpi-last">—</span>
+      </span>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- Quick Capture -->
+  <section class="grid tab" id="tab-capture">
+    <div class="card">
+      <h2>New Note</h2>
+      <div class="muted">Use <code>#tags</code>, first line becomes the title.</div>
+      <input id="cap-title" type="text" placeholder="Title (optional — will default to first line)"/>
+      <textarea id="cap-body" placeholder="Write or paste here… Use --- on a line by itself to make the next note."></textarea>
+      <div class="row">
+        <button class="btn primary" id="cap-save">Save Note</button>
+        <button class="btn" id="cap-save-card">Save + Make Flashcards</button>
+        <button class="btn ghost" id="cap-clear">Clear</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Bulk Paste (split into many notes)</h2>
+      <div class="muted">Paste your “one messy file” here. We’ll split notes by <b>---</b> lines, or by <b>two blank lines</b>, or by headings like <b>###</b>.</div>
+      <textarea id="bulk-area" placeholder="Paste lots of text here…"></textarea>
+      <div class="row">
+        <button class="btn" id="bulk-split">Split & Save</button>
+        <button class="btn ghost" id="bulk-clear">Clear</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Notes -->
+  <section class="grid tab hidden" id="tab-notes">
+    <div class="card">
+      <h2>Search & Filters</h2>
+      <input id="search" type="text" placeholder="Search title, content, or #tag… (live)"/>
+      <div class="row" id="tag-bar" style="margin-top:10px"></div>
+    </div>
+    <div class="card" style="grid-column:1/-1">
+      <h2>All Notes</h2>
+      <div class="list" id="notes-list"></div>
+    </div>
+  </section>
+
+  <!-- Flashcards -->
+  <section class="grid tab hidden" id="tab-review">
+    <div class="card">
+      <h2>Build Cards from a Note</h2>
+      <div class="muted">Use <b>Front :: Back</b> per line, or select text → “Make Card”.</div>
+      <select id="card-note-select"></select>
+      <textarea id="card-bulk" placeholder="Example:
+What is DNS? :: Domain Name System
+2+2? :: 4
+Nerve for smell? :: Olfactory"></textarea>
+      <div class="row">
+        <button class="btn" id="card-bulk-add">Add Cards</button>
+        <button class="btn ghost" id="card-export">Export Cards (JSON)</button>
+      </div>
+    </div>
+
+    <div class="card" style="grid-column:1/-1">
+      <h2>Review (Spaced Repetition)</h2>
+      <div id="review-box" class="note" style="display:none">
+        <div class="head">
+          <span class="title" id="rev-front">Front</span>
+          <span class="muted" id="rev-meta"></span>
+        </div>
+        <div style="margin-top:10px">
+          <div id="rev-back" class="hidden"></div>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn bad"  data-q="0">Again</button>
+          <button class="btn warn" data-q="3">Hard</button>
+          <button class="btn ok"   data-q="4">Good</button>
+          <button class="btn good" data-q="5">Easy</button>
+          <button class="btn ghost" id="rev-show">Show Answer</button>
+        </div>
+      </div>
+      <div id="review-empty" class="muted">No cards due right now. Add cards or check later.</div>
+    </div>
+  </section>
+
+  <!-- Backup -->
+  <section class="grid tab hidden" id="tab-backup">
+    <div class="card">
+      <h2>Backup</h2>
+      <div class="row">
+        <button class="btn" id="btn-export-json">Export All (JSON)</button>
+        <button class="btn" id="btn-export-notes">Export Notes (TXT)</button>
+      </div>
+      <div class="muted" style="margin-top:8px">
+        Tip: Keep one copy in cloud (Drive/OneDrive) and one on a USB. For privacy, zip with a password.
+      </div>
+    </div>
+    <div class="card">
+      <h2>Restore / Import</h2>
+      <input type="file" id="file-import" accept=".json,.txt"/>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="btn-import-json">Import JSON</button>
+        <button class="btn" id="btn-import-txt">Import TXT → split into notes</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div class="footer">Created by <strong>Sadik Pathan</strong></div>
+
+<script>
+/* =========================
+   Data Shapes & Storage
+   ========================= */
+const DB_KEY = 'SMART_NOTES_V1';
+const CARD_KEY = 'SMART_CARDS_V1';
+const META_KEY = 'SMART_META_V1';
+
+let state = {
+  notes: [],     // {id, title, body, tags[], created, updated}
+  cards: [],     // {id, noteId, front, back, ease, interval, reps, dueISO}
+  meta: { lastExportISO: null }
+};
+
+function save() {
+  localStorage.setItem(DB_KEY, JSON.stringify(state.notes));
+  localStorage.setItem(CARD_KEY, JSON.stringify(state.cards));
+  localStorage.setItem(META_KEY, JSON.stringify(state.meta));
+  refreshKPI();
+}
+function load() {
+  state.notes = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+  state.cards = JSON.parse(localStorage.getItem(CARD_KEY) || '[]');
+  state.meta  = JSON.parse(localStorage.getItem(META_KEY)  || '{"lastExportISO":null}');
+}
+
+/* =========================
+   Helpers
+   ========================= */
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const nowISO = () => new Date().toISOString();
+const uid = () => Math.random().toString(36).slice(2)+Date.now().toString(36);
+function extractTags(text) {
+  return Array.from(new Set((text.match(/#[\p{L}0-9_/-]+/gu) || []).map(s=>s.toLowerCase())));
+}
+function firstLine(s){ return (s||'').split(/\r?\n/)[0].trim(); }
+function createNote({title, body}) {
+  const t = title && title.trim() ? title.trim() : firstLine(body);
+  const note = {
+    id: uid(),
+    title: t || 'Untitled',
+    body: body || '',
+    tags: Array.from(new Set([
+      ...extractTags(t||''),
+      ...extractTags(body||'')
+    ])),
+    created: nowISO(),
+    updated: nowISO()
+  };
+  state.notes.unshift(note);
+  save();
+  return note;
+}
+function updateNote(id, patch){
+  const i = state.notes.findIndex(n=>n.id===id);
+  if(i>=0){
+    state.notes[i] = {...state.notes[i], ...patch, updated: nowISO()};
+    // refresh tags if body/title changed
+    if(patch.title!==undefined || patch.body!==undefined){
+      const t = state.notes[i].title, b = state.notes[i].body;
+      state.notes[i].tags = Array.from(new Set([...extractTags(t), ...extractTags(b)]));
+    }
+    save();
+  }
+}
+function deleteNote(id){
+  state.notes = state.notes.filter(n=>n.id!==id);
+  state.cards = state.cards.filter(c=>c.noteId!==id);
+  save();
+}
+
+/* =========================
+   UI: Tabs
+   ========================= */
+$$('.tab_btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    $$('.tab_btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const target = btn.dataset.tab;
+    $$('.tab').forEach(s=>s.classList.add('hidden'));
+    $('#tab-'+target).classList.remove('hidden');
+    if(target==='notes'){ renderNotes(); }
+    if(target==='review'){ renderReviewPanel(); fillNoteSelect(); }
+  });
+});
+
+/* =========================
+   Quick Capture & Bulk
+   ========================= */
+$('#cap-save').addEventListener('click', ()=>{
+  const title = $('#cap-title').value, body = $('#cap-body').value;
+  if(!title && !body.trim()) return;
+  createNote({title, body});
+  $('#cap-title').value=''; $('#cap-body').value='';
+  renderNotes(); fillNoteSelect();
+});
+$('#cap-clear').addEventListener('click', ()=>{ $('#cap-title').value=''; $('#cap-body').value=''; });
+
+$('#cap-save-card').addEventListener('click', ()=>{
+  const title = $('#cap-title').value, body = $('#cap-body').value;
+  if(!title && !body.trim()) return;
+  const note = createNote({title, body});
+  // Convert lines with :: into cards
+  const pairs = (body.match(/^.*?::.*$/gms) || []).map(l=>l.split('::'));
+  for(const [front,back] of pairs){
+    addCard({noteId:note.id, front:front.trim(), back:back.trim()});
+  }
+  $('#cap-title').value=''; $('#cap-body').value='';
+  renderNotes(); fillNoteSelect(); renderReviewPanel();
+});
+
+$('#bulk-split').addEventListener('click', ()=>{
+  const raw = $('#bulk-area').value;
+  if(!raw.trim()) return;
+  const chunks = splitBulk(raw);
+  chunks.forEach(chunk=>{
+    const title = firstLine(chunk);
+    createNote({title, body: chunk.trim()});
+  });
+  $('#bulk-area').value='';
+  renderNotes(); fillNoteSelect();
+});
+$('#bulk-clear').addEventListener('click', ()=>$('#bulk-area').value='');
+
+function splitBulk(text){
+  // Split by lines of --- OR by two or more blank lines OR by headings ### 
+  const parts = text
+    .split(/\n\s*---\s*\n|(?:\r?\n){2,}(?=\S)|\n(?=#{2,}\s)/g)
+    .map(s=>s.trim())
+    .filter(Boolean);
+  return parts.length? parts : [text];
+}
+
+/* =========================
+   Notes List, Search, Tags
+   ========================= */
+function renderNotes(){
+  const q = $('#search').value.toLowerCase().trim();
+  const chosenTag = $('#tag-bar').dataset.activeTag || null;
+  const list = $('#notes-list'); list.innerHTML='';
+  const allTags = new Set();
+
+  const filtered = state.notes.filter(n=>{
+    n.tags.forEach(t=>allTags.add(t));
+    const hit = !q || n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q) || n.tags.some(t=>t.includes(q));
+    const tagOk = !chosenTag || n.tags.includes(chosenTag);
+    return hit && tagOk;
+  });
+
+  renderTagBar(allTags);
+
+  filtered.forEach(n=>{
+    const el = document.createElement('div');
+    el.className='note';
+    el.innerHTML = `
+      <div class="head">
+        <div>
+          <div class="title">${escapeHTML(n.title)}</div>
+          <div class="muted" style="margin-top:2px">${new Date(n.updated).toLocaleString()}</div>
+        </div>
+        <div class="row">
+          <button class="btn" data-act="toCard">Make Card</button>
+          <button class="btn" data-act="edit">Edit</button>
+          <button class="btn" data-act="del">Delete</button>
+        </div>
+      </div>
+      <div class="body" style="margin-top:8px; white-space:pre-wrap">${linkifyTags(escapeHTML(n.body))}</div>
+      <div class="tags" style="margin-top:10px">${n.tags.map(t=>`<span class="pill">${t}</span>`).join('')}</div>
+    `;
+    el.querySelector('[data-act="edit"]').addEventListener('click', ()=>{
+      editNoteModal(n);
+    });
+    el.querySelector('[data-act="del"]').addEventListener('click', ()=>{
+      if(confirm('Delete this note?')){ deleteNote(n.id); renderNotes(); fillNoteSelect(); renderReviewPanel(); }
+    });
+    el.querySelector('[data-act="toCard"]').addEventListener('click', ()=>{
+      const sel = getSelectionTextIn(el.querySelector('.body'));
+      const front = sel || n.title;
+      addCard({noteId:n.id, front, back:firstMeaningful(n.body)});
+      alert('Card created from this note.');
+      renderReviewPanel();
+    });
+    list.appendChild(el);
+  });
+
+  $('#kpi-notes.textContent') = `${state.notes.length} notes`;
+}
+
+function renderTagBar(tags){
+  const bar = $('#tag-bar'); bar.innerHTML='';
+  const active = bar.dataset.activeTag || null;
+
+  const all = document.createElement('button');
+  all.className='btn'; all.textContent= active? 'All tags' : 'All tags ✓';
+  all.addEventListener('click', ()=>{ bar.dataset.activeTag=''; renderNotes(); });
+  bar.appendChild(all);
+
+  Array.from(tags).sort().forEach(tag=>{
+    const b = document.createElement('button');
+    b.className='btn'; b.textContent = (active===tag? '✓ ' : '') + tag;
+    b.addEventListener('click', ()=>{ bar.dataset.activeTag = (active===tag? '' : tag); renderNotes(); });
+    bar.appendChild(b);
+  });
+}
+
+function firstMeaningful(s){
+  const lines = (s||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  if(!lines.length) return '';
+  // Prefer line with ::
+  const qa = lines.find(l=>l.includes('::'));
+  if(qa) return qa.split('::')[1].trim();
+  return lines[0];
+}
+
+function getSelectionTextIn(container){
+  const sel = window.getSelection();
+  if(!sel || sel.rangeCount===0) return '';
+  const range = sel.getRangeAt(0);
+  if(!container.contains(range.commonAncestorContainer)) return '';
+  return sel.toString().trim();
+}
+
+function linkifyTags(text){
+  return text.replace(/(^|\s)(#[\p{L}0-9_/-]+)/gu, (_,sp,tag)=> `${sp}<span class="pill">${tag}</span>`);
+}
+
+function escapeHTML(s){
+  return (s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+}
+
+$('#search').addEventListener('input', renderNotes);
+
+/* =========================
+   Flashcards (SM-2)
+   ========================= */
+function addCard({noteId, front, back}){
+  const c = {
+    id: uid(), noteId: noteId || null,
+    front: front || '', back: back || '',
+    ease: 2.5, interval: 0, reps: 0,
+    dueISO: new Date().toISOString()
+  };
+  state.cards.push(c); save();
+}
+function fillNoteSelect(){
+  const sel = $('#card-note-select'); sel.innerHTML='';
+  state.notes.forEach(n=>{
+    const o = document.createElement('option');
+    o.value=n.id; o.textContent=n.title.slice(0,80);
+    sel.appendChild(o);
+  });
+}
+$('#card-bulk-add').addEventListener('click', ()=>{
+  const lines = $('#card-bulk').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const noteId = $('#card-note-select').value || null;
+  let count=0;
+  for(const line of lines){
+    const idx = line.indexOf('::');
+    if(idx>-1){
+      const front=line.slice(0,idx).trim(), back=line.slice(idx+2).trim();
+      if(front && back){ addCard({noteId, front, back}); count++; }
+    }
+  }
+  alert(`Added ${count} cards.`);
+  $('#card-bulk').value='';
+  renderReviewPanel();
+});
+
+function dueCards(){
+  const now = Date.now();
+  return state.cards.filter(c=> new Date(c.dueISO).getTime() <= now);
+}
+
+function renderReviewPanel(){
+  const due = dueCards();
+  $('#kpi-due').textContent = `${due.length} due`;
+  const box = $('#review-box'), empty = $('#review-empty');
+  if(!due.length){ box.style.display='none'; empty.style.display='block'; return; }
+  empty.style.display='none'; box.style.display='block';
+
+  const card = due[0];
+  $('#rev-front').textContent = card.front;
+  $('#rev-back').textContent = card.back;
+  $('#rev-back').classList.add('hidden');
+  $('#rev-meta').textContent = `Ease ${card.ease.toFixed(2)} • Interval ${card.interval}d`;
+
+  $('#rev-show').onclick = ()=> $('#rev-back').classList.toggle('hidden');
+  $$('#tab-review [data-q]').forEach(btn=>{
+    btn.onclick = ()=> grade(card, Number(btn.dataset.q));
+  });
+}
+
+function grade(card, quality){
+  // SM-2 simplified
+  let ease = card.ease, interval = card.interval, reps = card.reps;
+  if(quality < 3){
+    reps = 0; interval = 1; // relearn tomorrow
+  }else{
+    if(reps === 0) interval = 1;
+    else if(reps === 1) interval = 6;
+    else interval = Math.round(interval * ease);
+    reps++;
+    ease = Math.max(1.3, ease + (0.1 - (5 - quality)*(0.08 + (5 - quality)*0.02)));
+  }
+  const next = new Date(); next.setDate(next.getDate() + interval);
+  Object.assign(card, {ease, interval, reps, dueISO: next.toISOString()});
+  save();
+  renderReviewPanel();
+}
+
+$('#card-export').addEventListener('click', ()=>{
+  const data = JSON.stringify(state.cards, null, 2);
+  downloadText(data, 'flashcards.json', 'application/json');
+});
+
+/* =========================
+   Backup / Restore
+   ========================= */
+$('#btn-export-json').addEventListener('click', ()=>{
+  const blob = {
+    exportedAt: nowISO(),
+    notes: state.notes,
+    cards: state.cards,
+    meta: state.meta
+  };
+  state.meta.lastExportISO = blob.exportedAt; save();
+  downloadText(JSON.stringify(blob, null, 2), 'smart-notes-backup.json', 'application/json');
+  refreshKPI();
+});
+$('#btn-export-notes').addEventListener('click', ()=>{
+  const txt = state.notes.map(n=>`### ${n.title}\n${n.body}\n\n---\n`).join('\n');
+  downloadText(txt, 'notes.txt', 'text/plain');
+});
+
+$('#btn-import-json').addEventListener('click', async ()=>{
+const file = $('#file-import').files[0];
+  if(!file){ alert('Choose a .txt file first'); return; }
+  const raw = await file.text();
+  const parts = splitBulk(raw);
+  parts.forEach(p=> createNote({title:firstLine(p), body:p}));
+  renderNotes(); fillNoteSelect();
+  alert(`Imported ${parts.length} notes from TXT.`);
+});
+
+/* =========================
+   Utilities & KPI
+   ========================= */
+function downloadText(text, filename, mime){
+  const blob = new Blob([text], {type:mime||'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=filename; a.click();
+  URL.revokeObjectURL(url);
+}
+function refreshKPI(){
+  $('#kpi-notes').textContent = `${state.notes.length} notes`;
+  const due = dueCards().length;
+  $('#kpi-due').textContent = `${due} due`;
+  $('#kpi-last').textContent = state.meta.lastExportISO ? `Last export: ${new Date(state.meta.lastExportISO).toLocaleString()}` : 'No export yet';
+}
+
+/* =========================
+   Init
+   ========================= */
+load();
+refreshKPI();
+renderNotes();
+fillNoteSelect();
+renderReviewPanel();
+</script>
+</body>
+</html>
